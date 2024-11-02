@@ -4,6 +4,7 @@ import socket from '../socket';
 const VideoCall = () => {
   const [roomId, setRoomId] = useState('');
   const [isConnected, setIsConnected] = useState(false);
+  const [onlineCount, setOnlineCount] = useState(0); // State to track online users
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const peerConnection = useRef(null);
@@ -35,14 +36,10 @@ const VideoCall = () => {
     };
 
     try {
-      const devices = await navigator.mediaDevices.enumerateDevices();
-      console.log(devices); // Log available devices
-
       localStream.current = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localStream.current.getTracks().forEach(track => peerConnection.current.addTrack(track, localStream.current));
       localVideoRef.current.srcObject = localStream.current;
     } catch (error) {
-     // console.error("Error accessing media devices: ", error);
       alert("Unable to access camera/microphone. Please check permissions.");
     }
   };
@@ -51,6 +48,13 @@ const VideoCall = () => {
     await startConnection();
     socket.emit("join-room", roomId);
     setIsConnected(true);
+  };
+
+  const createRoom = () => {
+    const newRoomId = Math.random().toString(36).substr(2, 9); // Generate a random room ID
+    setRoomId(newRoomId);
+    socket.emit("create-room", newRoomId); // Emit event to create a new room on the server
+    joinRoom();
   };
 
   useEffect(() => {
@@ -69,6 +73,18 @@ const VideoCall = () => {
       await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
     });
 
+    socket.on("room-joined", (count) => {
+      setOnlineCount(count); // Update online count when a room is joined
+    });
+
+    socket.on("user-joined", (count) => {
+      setOnlineCount(count); // Update online count when a user joins
+    });
+
+    socket.on("user-left", (count) => {
+      setOnlineCount(count); // Update online count when a user leaves
+    });
+
     return () => {
       // Cleanup on unmount
       if (peerConnection.current) {
@@ -82,11 +98,15 @@ const VideoCall = () => {
       socket.off("offer");
       socket.off("answer");
       socket.off("ice-candidate");
+      socket.off("room-joined");
+      socket.off("user-joined");
+      socket.off("user-left");
     };
-  }, [roomId]); // Run this effect when roomId changes
+  }, [roomId]);
 
   return (
     <div>
+      <h2>Online Users: {onlineCount}</h2>
       <input
         type="text"
         placeholder="Enter Room ID"
@@ -94,6 +114,7 @@ const VideoCall = () => {
         onChange={(e) => setRoomId(e.target.value)}
       />
       <button onClick={joinRoom} disabled={isConnected}>Join Room</button>
+      <button onClick={createRoom}>Create Room</button>
       <div>
         <video ref={localVideoRef} autoPlay playsInline muted />
         <video ref={remoteVideoRef} autoPlay playsInline />
