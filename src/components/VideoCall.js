@@ -1,7 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
+import socket from '../socket';
 
 const VideoCall = () => {
   const [roomId, setRoomId] = useState('');
@@ -46,7 +44,6 @@ const VideoCall = () => {
         throw new Error('Please ensure your device has a camera and microphone.');
       }
 
-      // Create RTCPeerConnection
       peerConnection.current = new RTCPeerConnection({
         iceServers: [
           { urls: "stun:stun.relay.metered.ca:80" },
@@ -56,7 +53,6 @@ const VideoCall = () => {
         ]
       });
 
-      // Set up event handlers
       peerConnection.current.onicecandidate = (event) => {
         if (event.candidate) {
           socket.emit("ice-candidate", event.candidate, roomId);
@@ -67,14 +63,12 @@ const VideoCall = () => {
         remoteVideoRef.current.srcObject = event.streams[0];
       };
 
-      // Get user media with fallback options
       try {
         localStream.current = await navigator.mediaDevices.getUserMedia({ 
           video: true, 
           audio: true 
         });
       } catch (mediaError) {
-        // Try fallback to just audio if video fails
         try {
           console.log('Failed to get video, trying audio only');
           localStream.current = await navigator.mediaDevices.getUserMedia({ 
@@ -87,7 +81,6 @@ const VideoCall = () => {
         }
       }
 
-      // Add tracks to peer connection
       localStream.current.getTracks().forEach(track => 
         peerConnection.current.addTrack(track, localStream.current)
       );
@@ -141,7 +134,24 @@ const VideoCall = () => {
   };
 
   useEffect(() => {
-    // ... (previous socket event handlers remain the same)
+    socket.on("offer", async (offer) => {
+      await peerConnection.current.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await peerConnection.current.createAnswer();
+      await peerConnection.current.setLocalDescription(answer);
+      socket.emit("answer", answer, roomId);
+    });
+
+    socket.on("answer", async (answer) => {
+      await peerConnection.current.setRemoteDescription(new RTCSessionDescription(answer));
+    });
+
+    socket.on("ice-candidate", async (candidate) => {
+      await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
+    });
+
+    socket.on("room-joined", (count) => setOnlineCount(count));
+    socket.on("user-joined", (count) => setOnlineCount(count));
+    socket.on("user-left", (count) => setOnlineCount(count));
 
     return () => {
       cleanupConnection();
@@ -155,65 +165,113 @@ const VideoCall = () => {
   }, [roomId]);
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Online Users: {onlineCount}</h2>
-      </div>
+    <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+      <h2 style={{ marginBottom: '20px' }}>Online Users: {onlineCount}</h2>
 
       {error && (
-        <Alert variant="destructive" className="mb-4">
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
+        <div style={{
+          padding: '12px',
+          backgroundColor: '#fee2e2',
+          border: '1px solid #ef4444',
+          borderRadius: '4px',
+          marginBottom: '20px',
+          color: '#dc2626'
+        }}>
+          {error}
+        </div>
       )}
 
-      <div className="space-y-4">
-        <Input
+      <div style={{ marginBottom: '20px' }}>
+        <input
           type="text"
           placeholder="Enter Room ID"
           value={roomId}
           onChange={(e) => setRoomId(e.target.value)}
           disabled={isLoading}
+          style={{
+            width: '100%',
+            padding: '8px',
+            marginBottom: '10px',
+            borderRadius: '4px',
+            border: '1px solid #ccc'
+          }}
         />
         
-        <div className="flex gap-4">
-          <Button 
-            onClick={joinRoom} 
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={joinRoom}
             disabled={isConnected || isLoading}
-            className="w-full"
+            style={{
+              flex: 1,
+              padding: '8px',
+              backgroundColor: isConnected || isLoading ? '#ccc' : '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: isConnected || isLoading ? 'not-allowed' : 'pointer'
+            }}
           >
             {isLoading ? 'Connecting...' : 'Join Room'}
-          </Button>
-          <Button 
+          </button>
+          <button
             onClick={createRoom}
             disabled={isLoading}
-            className="w-full"
+            style={{
+              flex: 1,
+              padding: '8px',
+              backgroundColor: isLoading ? '#ccc' : '#3b82f6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: isLoading ? 'not-allowed' : 'pointer'
+            }}
           >
             Create Room
-          </Button>
+          </button>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden">
-          <video 
-            ref={localVideoRef} 
-            autoPlay 
-            playsInline 
-            muted 
-            className="w-full h-full object-cover"
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', 
+        gap: '20px' 
+      }}>
+        <div style={{ position: 'relative', aspectRatio: '16/9', backgroundColor: '#f3f4f6', borderRadius: '8px', overflow: 'hidden' }}>
+          <video
+            ref={localVideoRef}
+            autoPlay
+            playsInline
+            muted
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
-          <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded">
+          <div style={{
+            position: 'absolute',
+            bottom: '8px',
+            left: '8px',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            color: 'white',
+            padding: '4px 8px',
+            borderRadius: '4px'
+          }}>
             You
           </div>
         </div>
-        <div className="relative aspect-video bg-gray-100 rounded-lg overflow-hidden">
-          <video 
-            ref={remoteVideoRef} 
-            autoPlay 
-            playsInline 
-            className="w-full h-full object-cover"
+        <div style={{ position: 'relative', aspectRatio: '16/9', backgroundColor: '#f3f4f6', borderRadius: '8px', overflow: 'hidden' }}>
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
           />
-          <div className="absolute bottom-2 left-2 bg-black/50 text-white px-2 py-1 rounded">
+          <div style={{
+            position: 'absolute',
+            bottom: '8px',
+            left: '8px',
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            color: 'white',
+            padding: '4px 8px',
+            borderRadius: '4px'
+          }}>
             Remote
           </div>
         </div>
