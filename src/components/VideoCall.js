@@ -81,7 +81,7 @@ const VideoCall = () => {
       }
       socket.off("offer");
       socket.off("answer");
-      socket.off("ice-candidate");
+      socket.off("ice-candidate"); //dsfidhsfjh
     };
   }, [roomId]); // Run this effect when roomId changes
 
