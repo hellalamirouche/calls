@@ -1,14 +1,15 @@
 import React, { useRef, useState, useEffect } from 'react';
 import socket from '../socket';
+import './VideoCall.css'; // Import the CSS file for styling
 
 const VideoCall = () => {
   const [roomId, setRoomId] = useState('');
   const [isConnected, setIsConnected] = useState(false);
-  const [onlineCount, setOnlineCount] = useState(0); // State to track online users
+  const [onlineCount, setOnlineCount] = useState(0);
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const peerConnection = useRef(null);
-  const localStream = useRef(null); // To keep track of local stream
+  const localStream = useRef(null);
 
   const startConnection = async () => {
     if (peerConnection.current) {
@@ -51,10 +52,10 @@ const VideoCall = () => {
   };
 
   const createRoom = async () => {
-    const newRoomId = Math.random().toString(36).substr(2, 9); // Generate a random room ID
+    const newRoomId = Math.random().toString(36).substr(2, 9);
     setRoomId(newRoomId);
-    socket.emit("create-room", newRoomId); // Emit event to create a new room on the server
-    await joinRoom(); // Automatically join the newly created room
+    socket.emit("create-room", newRoomId);
+    await joinRoom();
   };
 
   useEffect(() => {
@@ -74,19 +75,18 @@ const VideoCall = () => {
     });
 
     socket.on("room-joined", (count) => {
-      setOnlineCount(count); // Update online count when a room is joined
+      setOnlineCount(count);
     });
 
     socket.on("user-joined", (count) => {
-      setOnlineCount(count); // Update online count when a user joins
+      setOnlineCount(count);
     });
 
     socket.on("user-left", (count) => {
-      setOnlineCount(count); // Update online count when a user leaves
+      setOnlineCount(count);
     });
 
     return () => {
-      // Cleanup on unmount
       if (peerConnection.current) {
         peerConnection.current.close();
         peerConnection.current = null;
@@ -105,19 +105,22 @@ const VideoCall = () => {
   }, [roomId]);
 
   return (
-    <div>
+    <div className="video-call-container">
       <h2>Online Users: {onlineCount}</h2>
       <input
         type="text"
         placeholder="Enter Room ID"
         value={roomId}
         onChange={(e) => setRoomId(e.target.value)}
+        className="room-input"
       />
-      <button onClick={joinRoom} disabled={isConnected}>Join Room</button>
-      <button onClick={createRoom}>Create Room</button>
-      <div>
-        <video ref={localVideoRef} autoPlay playsInline muted />
-        <video ref={remoteVideoRef} autoPlay playsInline />
+      <div className="button-container">
+        <button className="room-button" onClick={joinRoom} disabled={isConnected}>Join Room</button>
+        <button className="room-button" onClick={createRoom}>Create Room</button>
+      </div>
+      <div className="video-container">
+        <video ref={localVideoRef} autoPlay playsInline muted className="local-video" />
+        <video ref={remoteVideoRef} autoPlay playsInline className="remote-video" />
       </div>
     </div>
   );
