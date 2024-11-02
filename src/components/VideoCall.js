@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import socket from '../socket';
 
 const VideoCall = () => {
@@ -7,8 +7,14 @@ const VideoCall = () => {
   const localVideoRef = useRef(null);
   const remoteVideoRef = useRef(null);
   const peerConnection = useRef(null);
+  const localStream = useRef(null); // To keep track of local stream
 
   const startConnection = async () => {
+    if (peerConnection.current) {
+      console.warn('Already connected to a room');
+      return;
+    }
+
     peerConnection.current = new RTCPeerConnection({
       iceServers: [
         { urls: "stun:stun.relay.metered.ca:80" },
@@ -28,9 +34,13 @@ const VideoCall = () => {
       remoteVideoRef.current.srcObject = event.streams[0];
     };
 
-    const localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-    localStream.getTracks().forEach(track => peerConnection.current.addTrack(track, localStream));
-    localVideoRef.current.srcObject = localStream;
+    try {
+      localStream.current = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      localStream.current.getTracks().forEach(track => peerConnection.current.addTrack(track, localStream.current));
+      localVideoRef.current.srcObject = localStream.current;
+    } catch (error) {
+      console.error("Error accessing media devices: ", error);
+    }
   };
 
   const joinRoom = async () => {
@@ -39,20 +49,37 @@ const VideoCall = () => {
     setIsConnected(true);
   };
 
-  socket.on("offer", async (offer) => {
-    await peerConnection.current.setRemoteDescription(new RTCSessionDescription(offer));
-    const answer = await peerConnection.current.createAnswer();
-    await peerConnection.current.setLocalDescription(answer);
-    socket.emit("answer", answer, roomId);
-  });
+  useEffect(() => {
+    socket.on("offer", async (offer) => {
+      await peerConnection.current.setRemoteDescription(new RTCSessionDescription(offer));
+      const answer = await peerConnection.current.createAnswer();
+      await peerConnection.current.setLocalDescription(answer);
+      socket.emit("answer", answer, roomId);
+    });
 
-  socket.on("answer", async (answer) => {
-    await peerConnection.current.setRemoteDescription(new RTCSessionDescription(answer));
-  });
+    socket.on("answer", async (answer) => {
+      await peerConnection.current.setRemoteDescription(new RTCSessionDescription(answer));
+    });
 
-  socket.on("ice-candidate", async (candidate) => {
-    await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
-  });
+    socket.on("ice-candidate", async (candidate) => {
+      await peerConnection.current.addIceCandidate(new RTCIceCandidate(candidate));
+    });
+
+    return () => {
+      // Cleanup on unmount
+      if (peerConnection.current) {
+        peerConnection.current.close();
+        peerConnection.current = null;
+      }
+      if (localStream.current) {
+        localStream.current.getTracks().forEach(track => track.stop());
+        localStream.current = null;
+      }
+      socket.off("offer");
+      socket.off("answer");
+      socket.off("ice-candidate");
+    };
+  }, [roomId]); // Run this effect when roomId changes
 
   return (
     <div>
