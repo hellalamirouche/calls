@@ -35,11 +35,15 @@ const VideoCall = () => {
     };
 
     try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      console.log(devices); // Log available devices
+
       localStream.current = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localStream.current.getTracks().forEach(track => peerConnection.current.addTrack(track, localStream.current));
       localVideoRef.current.srcObject = localStream.current;
     } catch (error) {
-      console.error("Error accessing media devices: ", error);
+     // console.error("Error accessing media devices: ", error);
+      alert("Unable to access camera/microphone. Please check permissions.");
     }
   };
 
