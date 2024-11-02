@@ -1,3 +1,6 @@
+import React, { useRef, useState, useEffect } from 'react';
+import socket from '../socket';
+
 const VideoCall = () => {
   const [roomId, setRoomId] = useState('');
   const [isConnected, setIsConnected] = useState(false);
@@ -28,15 +31,18 @@ const VideoCall = () => {
     };
 
     peerConnection.current.ontrack = (event) => {
-      // Display the remote stream when received
       remoteVideoRef.current.srcObject = event.streams[0];
     };
 
     try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      console.log(devices); // Log available devices
+
       localStream.current = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
       localStream.current.getTracks().forEach(track => peerConnection.current.addTrack(track, localStream.current));
       localVideoRef.current.srcObject = localStream.current;
     } catch (error) {
+     // console.error("Error accessing media devices: ", error);
       alert("Unable to access camera/microphone. Please check permissions.");
     }
   };
@@ -75,7 +81,7 @@ const VideoCall = () => {
       }
       socket.off("offer");
       socket.off("answer");
-      socket.off("ice-candidate");
+      socket.off("ice-candidate"); //dsfidhsfjh
     };
   }, [roomId]); // Run this effect when roomId changes
 
@@ -92,7 +98,6 @@ const VideoCall = () => {
         <video ref={localVideoRef} autoPlay playsInline muted />
         <video ref={remoteVideoRef} autoPlay playsInline />
       </div>
-      {isConnected && <p>Connected to room: {roomId}</p>}
     </div>
   );
 };
