@@ -50,11 +50,11 @@ const VideoCall = () => {
     setIsConnected(true);
   };
 
-  const createRoom = () => {
+  const createRoom = async () => {
     const newRoomId = Math.random().toString(36).substr(2, 9); // Generate a random room ID
     setRoomId(newRoomId);
     socket.emit("create-room", newRoomId); // Emit event to create a new room on the server
-    joinRoom();
+    await joinRoom(); // Automatically join the newly created room
   };
 
   useEffect(() => {
